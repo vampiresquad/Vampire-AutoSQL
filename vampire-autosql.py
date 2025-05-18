@@ -1,67 +1,85 @@
 #!/usr/bin/env python3
-
 import os
 import sys
+import time
 import subprocess
-from datetime import datetime
 from termcolor import cprint, colored
+from urllib.parse import urlparse
+import getpass
 
-# Banner
+PASSWORD = "SH404"
+output_dir = "output"
+os.makedirs(output_dir, exist_ok=True)
+
 def banner():
     os.system("clear")
-    cprint("╔═╗╦  ╦╔╦╗╔═╗╔═╗╦═╗  ╔═╗╔═╗╔═╗╔═╗", "red")
+    cprint("\n╔═╗╦  ╦╔╦╗╔═╗╔═╗╦═╗  ╔═╗╔═╗╔═╗╔═╗", "red")
     cprint("╠═╝║  ║ ║ ║╣ ╠═╣╠╦╝  ║  ╠═╣╠═╝╠═╣", "yellow")
-    cprint("╩  ╩═╝╩ ╩ ╚═╝╩ ╩╩╚═  ╚═╝╩ ╩╩  ╩ ╩", "green")
+    cprint("╩  ╩═╝╩ ╩ ╚═╝╩ ╩╩╚═  ╚═╝╩ ╩╩  ╩ ╩\n", "green")
     cprint("     Vampire Squad - Auto SQL Scanner", "cyan")
-    print(colored("     Coded by: Muhammad Shourov (VAMPIRE)\n", "magenta"))
+    print(colored("     Coded by: Muhammad Shourov (VAMPIRE)", "magenta"))
+    print(colored("     Status: Fully Automatic | Fully Secure | Fully Advanced\n", "light_green"))
 
-# Dependency check
-def check_deps():
+def slow_type(text, delay=0.03):
+    for char in text:
+        print(char, end='', flush=True)
+        time.sleep(delay)
+    print()
+
+def disclaimer():
+    slow_type("\n[!] Disclaimer: This tool is for educational purposes only. Use it legally.", 0.05)
+
+def check_password():
     try:
-        import requests, termcolor
-    except:
-        print("[*] Installing required Python modules...")
-        os.system("pip install requests termcolor")
-
-# Run ParamSpider
-def run_paramspider(target):
-    cprint(f"\n[+] Running ParamSpider on: {target}", "cyan")
-    out_file = f"output/{target.replace('https://', '').replace('http://', '').replace('/', '_')}_params.txt"
-    os.system(f"paramspider --domain {target} --quiet > {out_file}")
-    return out_file
-
-# Run SQLMAP
-def run_sqlmap(param_file):
-    cprint(f"\n[+] Running SQLMap on extracted parameters...", "cyan")
-    with open(param_file, "r") as f:
-        urls = f.readlines()
-
-    for url in urls:
-        url = url.strip()
-        if "?" in url:
-            cprint(f"\n[*] Testing: {url}", "yellow")
-            cmd = f"python3 sqlmap/sqlmap.py -u \"{url}\" --batch --random-agent --level=5 --risk=3 --threads=5"
-            os.system(cmd)
-
-# Main Logic
-def main():
-    banner()
-    check_deps()
-
-    if len(sys.argv) != 2:
-        print("Usage: python3 vampire-autosql.py <target-site>")
+        inp = getpass.getpass("\nEnter Tool Password: ")
+        if inp != PASSWORD:
+            print("\n[!] Incorrect password.")
+            sys.exit(1)
+    except KeyboardInterrupt:
+        print("\n[!] Exiting.")
         sys.exit(1)
 
-    target = sys.argv[1]
-    if not target.startswith("http"):
-        target = "https://" + target
+def run_paramspider(target):
+    print(colored("\n[*] Scanning for parameters using ParamSpider...", "cyan"))
+    output_file = f"{output_dir}/params.txt"
+    os.system(f"paramspider -d {target} --level high -o {output_file} > /dev/null 2>&1")
+    print(colored(f"[+] Parameters saved to {output_file}", "green"))
+    return output_file
 
-    if not os.path.exists("output"):
-        os.makedirs("output")
+def run_sqlmap(url_file):
+    log_file = f"{output_dir}/sqlmap_log.txt"
+    html_report = f"{output_dir}/report.html"
+    with open(url_file, 'r') as f:
+        urls = f.readlines()
 
-    params_file = run_paramspider(target)
-    run_sqlmap(params_file)
-    cprint("\n[✓] Scanning complete. Stay Vampire!", "green")
+    slow_type("\n[!] Starting SQL Injection scan...\n")
+    for url in urls:
+        url = url.strip()
+        if not url:
+            continue
+        slow_type(f"\n[*] Testing: {url}", 0.01)
+        cmd = f"sqlmap -u \"{url}\" --batch --random-agent --level=3 --risk=3 --output-dir={output_dir} --flush-session --html-reports"
+        with open(log_file, "a") as lf:
+            subprocess.run(cmd, shell=True, stdout=lf, stderr=lf)
 
-if __name__ == "__main__":
-    main()
+    print(colored(f"\n[+] SQLi scan complete. Logs saved to: {log_file}", "green"))
+    print(colored(f"[+] HTML report (if any vulnerabilities found): {html_report}\n", "cyan"))
+
+if __name__ == '__main__':
+    banner()
+    disclaimer()
+    check_password()
+
+    if len(sys.argv) != 2:
+        print("\nUsage: python3 vampire-autosql.py <website>")
+        sys.exit(1)
+
+    target = urlparse(sys.argv[1]).netloc
+    if not target:
+        print("\n[!] Invalid URL.")
+        sys.exit(1)
+
+    param_file = run_paramspider(target)
+    run_sqlmap(param_file)
+
+    print(colored("\n[✔] All tasks complete.", "light_green"))
